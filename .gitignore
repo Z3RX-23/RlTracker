@@ -1,0 +1,40 @@
+# Dados do utilizador e chaves de API -- NUNCA para o git
+profiles.json
+settings.json
+ballchasing.json
+ai.json
+history.db
+replays.db
+*.db-journal
+backups/
+dados_backup/
+config.ini
+
+# Build
+build/
+dist/
+*.spec
+venv/
+.venv/
+
+# Python / testes
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Copias antigas
+*.pre_*
+*.pre_*.py
+_backup_pre_remocao_rank/
+
+# Pasta de ficheiros para apagar + icones duplicados (so o AppRL.ico e usado)
+_to_delete/
+AppRL16.ico
+AppRL24.ico
+AppRL32.ico
+AppRL48.ico
+AppRL64.ico
+AppRL96.ico
+AppRL128.ico
+AppRL256.ico
+.git/stale-index-lock
