@@ -33,6 +33,61 @@ def rolling_win_pct(rows, window=10, min_games=5):
     return out
 
 
+SESSION_GAP_MIN = 60      # mais de 1 h sem jogar = sessao nova
+POS_CAP = 8               # ultima barra = "8 ou mais"
+
+
+def sessions(rows, gap_min=SESSION_GAP_MIN):
+    """Agrupa os jogos em sessoes (lista de listas, cada uma por ordem cronologica)."""
+    rows = sorted(rows, key=lambda r: (r["ts"], r.get("id", 0)))
+    out, cur, last = [], [], None
+    for r in rows:
+        t = parse_ts(r["ts"])
+        if t is None:
+            continue
+        if last is not None and cur and (t - last).total_seconds() > gap_min * 60:
+            out.append(cur)
+            cur = []
+        cur.append(r)
+        last = t
+    if cur:
+        out.append(cur)
+    return out
+
+
+def by_session_position(rows, cap=POS_CAP):
+    """[[jogos, vitorias]] para o 1.o, 2.o, ... jogo da sessao (o ultimo junta os restantes)."""
+    b = [[0, 0] for _ in range(cap)]
+    for s in sessions(rows):
+        for i, r in enumerate(s):
+            k = min(i, cap - 1)
+            b[k][0] += 1
+            b[k][1] += 1 if r["won"] else 0
+    return b
+
+
+def after_result(rows):
+    """[[n, w] 1.o jogo da sessao, [n, w] depois de ganhar, [n, w] depois de perder]."""
+    b = [[0, 0], [0, 0], [0, 0]]
+    for s in sessions(rows):
+        for i, r in enumerate(s):
+            k = 0 if i == 0 else (1 if s[i - 1]["won"] else 2)
+            b[k][0] += 1
+            b[k][1] += 1 if r["won"] else 0
+    return b
+
+
+def rolling_avg(rows, key, window=10, min_games=5):
+    """[(n_do_jogo, media)] da stat `key` nos ultimos `window` jogos."""
+    rows = sorted(rows, key=lambda r: (r["ts"], r.get("id", 0)))
+    out = []
+    for i in range(len(rows)):
+        w = rows[max(0, i - window + 1):i + 1]
+        if len(w) >= min(min_games, window):
+            out.append((i + 1, sum((r.get(key) or 0) for r in w) / len(w)))
+    return out
+
+
 def _bucket(rows, size, key):
     b = [[0, 0] for _ in range(size)]          # [jogos, vitorias]
     for r in rows:
@@ -139,6 +194,50 @@ class LineChart(_Base):
         i = min(range(len(xs)), key=lambda k: abs(xs[k] - e.x))
         n, p = self._data[i]
         self._on_hover(tr("Jogo #{n}: {p:.0f}% de vitórias nos últimos jogos", n=n, p=p))
+
+
+class ValueChart(LineChart):
+    """Linha de uma media (golos, pontos...) com eixo em valores, nao em %."""
+
+    def __init__(self, *a, unit="", **kw):
+        super().__init__(*a, **kw)
+        self._unit = unit
+        self._vmax = 1.0
+
+    def set_unit(self, unit):
+        self._unit = unit
+
+    def _nice_max(self):
+        top = max((v for _, v in self._data), default=1.0) * 1.1
+        for m in (1, 2, 4, 6, 8, 10, 20, 40, 60, 80, 100, 200, 400, 600, 800, 1000, 2000, 5000):
+            if top <= m:
+                return float(m)
+        return float(top)
+
+    def _grid(self, x0, y0, x1, y1):
+        self._vmax = self._nice_max()
+        for frac in (0, 0.5, 1):
+            y = y1 - (y1 - y0) * frac
+            self.create_line(x0, y, x1, y, fill=C["border"], dash=(3, 3) if frac == 0.5 else ())
+            v = self._vmax * frac
+            self.create_text(x0 - P(6), y, text=f"{v:.0f}" if v >= 10 else f"{v:.1f}".rstrip("0").rstrip("."),
+                             anchor="e", fill=C["dim"], font=F(7))
+
+    def _y(self, v, y0, y1):
+        return y1 - (y1 - y0) * min(v, self._vmax) / self._vmax
+
+    def redraw(self):
+        if self._data:
+            self._vmax = self._nice_max()
+        super().redraw()
+
+    def _motion(self, e):
+        if not self._data or len(self._data) < 2 or not self._on_hover or not getattr(self, "_xy", None):
+            return
+        xs = [x for x, _ in self._xy]
+        i = min(range(len(xs)), key=lambda k: abs(xs[k] - e.x))
+        n, v = self._data[i]
+        self._on_hover(tr("Jogo #{n}: média de {v:.1f} {u} nos últimos 10 jogos", n=n, v=v, u=tr(self._unit)))
 
 
 class BarChart(_Base):

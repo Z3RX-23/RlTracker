@@ -37,3 +37,40 @@ def test_compare_replay_zero_boost_lower_is_better():
         {"percent_zero_boost": 30.0, "possession_pct": 60.0}, {"percent_zero_boost": 20.0, "possession_pct": 50.0})}
     assert items["Sem boost"]["good"] is False and items["Posse"]["good"] is True
     assert compare.compare_replay({}, {"possession_pct": 50}) == []
+
+
+def _mk(ts, won, score=100, **kw):
+    r = {"id": 0, "ts": ts, "won": won, "score": score, "goals": 1}
+    r.update(kw)
+    return r
+
+
+def test_sessions_split_by_gap():
+    rows = [_mk("2026-10-24 10:00:00", 1), _mk("2026-10-24 10:20:00", 0),
+            _mk("2026-10-24 12:30:00", 1), _mk("2026-10-24 12:40:00", 1)]
+    s = charts.sessions(rows)
+    assert [len(x) for x in s] == [2, 2]
+
+
+def test_by_session_position_and_cap():
+    rows = [_mk("2026-10-24 10:%02d:00" % i, i % 2) for i in range(0, 12)]
+    b = charts.by_session_position(rows, cap=4)
+    assert [x[0] for x in b] == [1, 1, 1, 9]          # o ultimo junta os restantes
+    assert sum(x[1] for x in b) == 6
+
+
+def test_after_result():
+    rows = [_mk("2026-10-24 10:00:00", 1), _mk("2026-10-24 10:10:00", 0),
+            _mk("2026-10-24 10:20:00", 1), _mk("2026-10-24 10:30:00", 1),
+            _mk("2026-10-24 15:00:00", 0)]
+    first, aw, al = charts.after_result(rows)
+    assert first == [2, 1]        # 10:00 (ganhou) e 15:00 (perdeu)
+    assert aw == [2, 1]           # depois de ganhar: 10:10 (perdeu) e 10:30 (ganhou)
+    assert al == [1, 1]           # depois de perder: 10:20 (ganhou)
+
+
+def test_rolling_avg():
+    rows = [_mk("2026-10-24 10:%02d:00" % i, 1, score=i * 10) for i in range(8)]
+    pts = charts.rolling_avg(rows, "score", window=4, min_games=4)
+    assert pts[0] == (4, 15.0) and pts[-1] == (8, 55.0)
+    assert charts.rolling_avg(rows[:2], "score") == []

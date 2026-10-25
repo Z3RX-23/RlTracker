@@ -1,130 +1,72 @@
-# Rocket League Live Dashboard / Session Tracker
+# RL Live Dashboard
 
-Liga-se a **Stats API** local do Rocket League
-(https://www.rocketleague.com/developer/stats-api) e mostra/regista em
-tempo real as estatisticas da sessao/partida atual: golos, assistencias,
-defesas, remates, demos, boost, velocidade, eventos (golos, demolicoes,
-fim de partida), e totais da sessao (vitorias, derrotas, sequencia).
+Painel para Windows que mostra **em tempo real** o que se passa nas tuas partidas de Rocket League e **guarda o histórico** para veres como estás a evoluir. Funciona com a Stats API oficial do jogo, sem mods nem nada que mexa no jogo.
 
-Ha duas formas de usar, no mesmo projeto:
+![Ao vivo](docs/ao-vivo.png)
+<sub>Capturas com dados de exemplo.</sub>
 
-1. **`app.py`** — dashboard com janela grafica propria, em **Tkinter**
-   (biblioteca padrao do Python, sem motor de browser nenhum). Pode ser
-   empacotado num `.exe` standalone com `build.bat`.
-2. **`rl_session_tracker.py`** — versao simples em linha de comando
-   (texto no terminal), util para debugging ou para gravar CSV/JSONL.
+**O que faz**
 
-A logica de ligacao/estado (sem GUI) vive em `tracker_core.py`, partilhada
-e testada de forma isolada.
+- **Ao vivo:** placar, tempo, jogadores de cada equipa (golos, assistências, defesas, remates, boost, velocidade) e feed de eventos.
+- **Sessão:** jogos, vitórias, derrotas, sequência e win%, separados por modo (1v1, 2v2, 3v3).
+- **Histórico:** todas as partidas guardadas, com filtros, gráficos e exportação para CSV.
+- **Treinador:** dicas automáticas a partir das tuas estatísticas, mais análise opcional com IA.
+- **Replays:** envia os teus replays para o [Ballchasing](https://ballchasing.com) e compara cada um com a tua média.
+- **Avisos:** alerta (banner e som) quando chegas a N derrotas seguidas, para parares antes de entrares em tilt.
+- Português e inglês, escala da interface, ícone na bandeja, cópia de segurança automática.
 
-## Sobre a versao anterior (pywebview) e o "Not Responding"
+---
 
-A primeira versao desta app usava `pywebview` (renderiza HTML/CSS via o
-motor Edge WebView2 do Windows). Esse motor pode bloquear na
-inicializacao quando empacotado com PyInstaller — e' um problema
-conhecido da combinacao pywebview + WebView2 + PyInstaller, nao do teu
-PC. A app foi reescrita em **Tkinter puro**, que vem incluido no proprio
-Python e nao depende de nenhum motor de browser externo, eliminando essa
-causa de bloqueio.
+## Índice
 
-## Nota tecnica: nao e' bem um "WebSocket"
+1. [Instalação rápida](#1-instalação-rápida)
+2. [Primeira configuração](#2-primeira-configuração)
+3. [Guia da aplicação](#3-guia-da-aplicação)
+4. [Definições](#4-definições)
+5. [Os teus dados e privacidade](#5-os-teus-dados-e-privacidade)
+6. [Problemas comuns](#6-problemas-comuns)
+7. [Como funciona e limitações](#7-como-funciona-e-limitações)
+8. [Para programadores](#8-para-programadores)
 
-A documentacao oficial chama a isto "web socket", mas na pratica e' um
-**socket TCP simples** que envia objetos JSON concatenados, sem o
-handshake HTTP/Upgrade que um WebSocket real exige. Se ligares com uma
-biblioteca de WebSocket (como a `websockets` que usei na primeira
-versao), o handshake nunca completa e a app fica para sempre a tentar
-ligar — exatamente o sintoma de "nao esta a detetar que o jogo esta
-aberto". Por isso `app.py`, `tracker_core.py` e `rl_session_tracker.py`
-ligam com `asyncio.open_connection` (TCP cru) e separam as mensagens
-concatenadas com um "frame buffer" que conta a profundidade de chavetas
-`{ }`. Isto ja nao precisa de nenhuma biblioteca externa (so a biblioteca
-padrao do Python).
+---
 
-## Limitacoes importantes da API oficial
+## 1. Instalação rápida
 
-A Stats API so' transmite dados enquanto o proprio jogo tem uma partida
-a decorrer na tua maquina:
+**Requisitos:** Windows 10 ou 11 e o Rocket League instalado (Steam ou Epic). Não precisas de Python.
 
-- So funciona com o Rocket League aberto e uma partida em curso (online,
-  LAN, treino ou contra bots).
-- So mostra dados dos jogadores presentes nessa partida — nao existe
-  forma oficial de consultar as stats de carreira de qualquer jogador da
-  internet por nome.
-- **Nao transmite MMR/rank, nem o teu nem o dos outros jogadores.** Isto
-  e' uma limitacao da API oficial da Psyonix, nao desta app. Alternativas
-  reais:
-  - **O teu proprio MMR:** so e' possivel com
-    [BakkesMod](https://bakkesmod.com) (ferramenta de terceiros que le a
-    memoria do jogo), usando um plugin gratuito ja existente como
-    *"RocketStats"* ou *"Session MMR and streak tracker"*
-    (bakkesplugins.com). Isto e' uma ferramenta separada, nao Python.
-  - **MMR de outros jogadores:** nao existe forma fiavel. Mesmo o
-    BakkesMod so consegue o MMR do jogador local (e colegas de equipa na
-    mesma party), nunca de adversarios — a propria Psyonix nao expoe
-    isso a clientes. A API publica da Tracker Network (tracker.gg) esta
-    bloqueada por Cloudflare desde abril de 2023; o que resta sao
-    revendedores de terceiros pagos e pouco fiaveis.
-  - Por isso, esta app foca-se em **vitorias, derrotas e sequencia
-    (streak)**, que sao calculaveis com seguranca a partir dos proprios
-    eventos da partida (`MatchEnded` + saber em que equipa estavas).
+1. Vai à página de **Releases** deste repositório e descarrega o `RL-Live-Dashboard.exe` (ou o `.zip` com ele).
+2. Põe o ficheiro numa pasta tua, por exemplo `Documentos\RL-Live-Dashboard`. **Não o deixes em Transferências ou no ambiente de trabalho:** a app guarda os teus dados na mesma pasta do `.exe`.
+3. Faz duplo clique para abrir.
 
-## Como o resultado (vitoria/derrota) e' detetado
+> **Aviso do Windows:** como o executável não é assinado, o Windows pode mostrar "O Windows protegeu o seu PC". Clica em **Mais informações** e depois em **Executar mesmo assim**. Alguns antivírus também desconfiam de programas feitos com PyInstaller. Se tiveres dúvidas, o código está todo neste repositório e podes gerar o exe tu mesmo (secção 8).
 
-Confiar so' no evento `MatchEnded` nao chega sempre — por exemplo, se a
-ligacao TCP fechar muito rapido a seguir ao fim da partida, essa mensagem
-pode nunca chegar a ser processada. Por isso a app tenta tres niveis,
-por ordem, sempre que sais de uma partida:
+Para atualizares, fecha a app (incluindo o ícone da bandeja), substitui o `.exe` pelo novo e abre. Os teus dados ficam intactos, porque estão em ficheiros ao lado do exe.
 
-1. **`MatchEnded` oficial** — o proprio jogo anuncia o vencedor
-   (`WinnerTeamNum`). E' o caso normal, sempre fiavel.
-2. **Rede de seguranca via `bHasWinner`/`Winner`** — se o `MatchEnded`
-   nao for recebido a tempo, a app usa o ultimo `UpdateState` conhecido
-   (que tambem inclui se ja' havia um vencedor decidido) no momento em
-   que saires da partida (`MatchDestroyed`). Tao fiavel quanto o
-   `MatchEnded`, so' chega mais tarde.
-3. **Estimativa pelo placar (ultimo recurso)** — se saires ANTES de
-   qualquer vencedor ser oficialmente decidido (ex.: abandono/FF a meio
-   do jogo), a app nao tem como saber o resultado real. Nesse caso usa o
-   ultimo placar conhecido como estimativa (quem estava a ganhar quando
-   saiste). Isto e' marcado claramente no feed de eventos como
-   "ESTIMATIVA pelo placar", porque **pode estar errado**: sair a ganhar
-   nao significa necessariamente vitoria oficial (a Psyonix pode registar
-   isso como derrota do lado dela, algo que esta API local nao mostra).
+---
 
-Se nem isso for possivel (ex.: saiste antes de haver qualquer placar, ou
-as equipas estavam empatadas), a partida simplesmente nao e' contada na
-sessao, e o feed de eventos explica o motivo.
+## 2. Primeira configuração
 
-Adicionalmente, a Stats API **nao diz qual e' o playlist/modo de jogo**
-(ranked, casual, treino, exibicao). Por isso a app usa dois sinais para
-nao contar sessoes sem significado:
+São três passos e só se fazem uma vez.
 
-- **Sem adversario real (Free Play, treino personalizado):** se so'
-  houver jogadores numa unica equipa (ninguem na equipa adversaria), a
-  partida NUNCA conta -- isto nao e' configuravel, porque o jogo por
-  vezes ainda emite `MatchEnded` com um "vencedor" mesmo em Free Play
-  (declarando-te vencedor por nao haver ninguem para perder), e isso
-  nao tem significado nenhum.
-- **Partidas com bots:** bots reportam sempre `PrimaryId` "Unknown|0|0".
-  Com a caixa "Nao contar partidas com bots (treino)" ligada (por
-  defeito), partidas de exibicao contra IA tambem ficam de fora da
-  sessao -- esta sim e' configuravel, ve a secao seguinte.
+### 2.1 Ativar a Stats API do jogo
 
-## 1. Ativar a Stats API no jogo
+A app precisa que o Rocket League emita as estatísticas. **Isto é feito sozinho:** ao abrir, a app procura o `DefaultStatsAPI.ini` do jogo e, se a configuração faltar, escreve-a e avisa na janela ("Stats API … reparada").
 
-Antes de abrir o Rocket League, edita o ficheiro:
+Depois disso, **fecha e volta a abrir o Rocket League**, porque o jogo só lê esse ficheiro no arranque.
 
-```
-<Pasta de instalacao do RL>\TAGame\Config\DefaultStatsAPI.ini
+Se o jogo estiver num sítio pouco usual e a app disser que não encontra o ficheiro, cria um `config.ini` ao lado do exe:
+
+```ini
+[game]
+install_dir = D:\Jogos\rocketleague
 ```
 
-Localizacoes tipicas:
+Se o jogo estiver em `Program Files` e a reparação falhar por permissões, abre a app uma vez como administrador.
 
-- Steam: `C:\Program Files (x86)\Steam\steamapps\common\rocketleague\TAGame\Config\DefaultStatsAPI.ini`
-- Epic Games: `C:\Program Files\Epic Games\rocketleague\TAGame\Config\DefaultStatsAPI.ini`
+<details>
+<summary>Configurar à mão (se preferires)</summary>
 
-Adiciona/edita estas linhas (cria a seccao se nao existir):
+Edita, com o jogo fechado, o ficheiro `<pasta do jogo>\TAGame\Config\DefaultStatsAPI.ini`:
 
 ```ini
 [TAGame.MatchStatsExporter_TA]
@@ -132,190 +74,291 @@ PacketSendRate=10
 Port=49123
 ```
 
-**Atencao ao nome da seccao** — tem de ser exatamente
-`[TAGame.MatchStatsExporter_TA]`. Se a seccao estiver errada ou nao
-existir, o jogo nunca ativa o socket, `PacketSendRate` e `Port` sao
-ignorados, e a app fica sempre a tentar ligar sem sucesso (este foi o
-motivo mais provavel de a app "nao detetar que o jogo esta aberto").
+O nome da secção tem de ser exatamente esse. `PacketSendRate` tem de ser maior que 0 (10 a 30 é um bom valor) e `Port` é a porta local (49123 por defeito).
 
-- `PacketSendRate` tem de ser maior que 0 para ativar o socket (10 a 30
-  e' um bom valor; maximo 120).
-- `Port` e' a porta local onde o socket fica disponivel (por defeito
-  49123).
+Pastas habituais:
+- Steam: `C:\Program Files (x86)\Steam\steamapps\common\rocketleague\TAGame\Config\`
+- Epic: `C:\Program Files\Epic Games\rocketleague\TAGame\Config\`
+</details>
 
-**Depois de um update do jogo:** o Steam/Epic repoe este ficheiro e a
-configuracao perde-se. A app verifica o `DefaultStatsAPI.ini` ao abrir e
-de 30 em 30 segundos (fora de partidas) e, se a secao tiver desaparecido,
-repara-a sozinha e avisa na janela ("Stats API ... reparada"). Tens de
-fechar e voltar a abrir o Rocket League depois disso. Se a pasta do jogo
-nao for detetada (Steam/Epic em sitios pouco usuais), define no
-`config.ini`:
+> Depois de cada atualização do jogo, a Steam/Epic pode repor este ficheiro. A app verifica-o ao abrir e de 30 em 30 segundos (fora de partidas) e repara-o sozinha. Se avisar que reparou, reinicia o jogo.
 
-```ini
-[game]
-install_dir = D:\Jogos\rocketleague
-```
+### 2.2 Dizer à app quem tu és
 
-Se o jogo estiver em `Program Files` e a reparacao falhar por permissoes,
-corre a app como administrador uma vez. Tambem podes verificar/reparar a
-partir da linha de comandos: `python stats_api_config.py --fix`.
+Na página **Ao vivo**, no cartão **Sessão**:
 
-**Fecha o jogo completamente antes de editar o ficheiro, e so abre o
-jogo depois de gravares as alteracoes** — a configuracao so e' lida no
-arranque do cliente. Depois de abrir o jogo, entra numa partida real
-(treino, contra bots, ou online) — o socket so fica ativo durante uma
-partida, nao no menu principal.
+1. Escreve o teu **nome no jogo**, exatamente como aparece no Rocket League.
+2. Escolhe a **plataforma** (Qualquer, Steam ou Epic).
 
-## 2. Opcao A — App com dashboard (janela grafica)
+É assim que a app sabe qual dos jogadores és tu, para contar as tuas vitórias e derrotas. Quando está tudo certo aparece "encontrado" a verde durante uma partida.
 
-### Correr em modo desenvolvimento
+**Tens duas contas (Steam e Epic)?** Cria um perfil para cada uma no menu de perfis (**+ Novo perfil**). Cada perfil tem a sua própria sessão. Com **Troca automática de perfil** ligada, a app muda sozinha para o perfil certo quando começa uma partida.
+
+### 2.3 Jogar
+
+Abre o Rocket League e entra numa partida (online, treino contra bots, o que quiseres). A app liga-se sozinha: o indicador no topo passa de "Sem ligação ao jogo" a **"Em partida"**. A ligação só existe durante uma partida, por isso no menu principal do jogo aparece "Sem ligação", e isso é normal.
+
+Não precisas de abrir a app depois do jogo: podes tê-la aberta antes, que ela fica à espera.
+
+---
+
+## 3. Guia da aplicação
+
+A navegação está na barra lateral esquerda: **Ao vivo**, **Histórico**, **Treinador**, **Replays** e **Definições**.
+
+O botão **Modo compacto** (canto superior direito) reduz a janela a uma barra pequena com o essencial da sessão, para a deixares num canto do ecrã. **Expandir** volta ao normal.
+
+### Ao vivo
+
+![Ao vivo](docs/ao-vivo.png)
+
+- **Cabeçalho:** placar, tempo restante e estado da ligação.
+- **Sessão:** jogos, vitórias, derrotas, win% e sequência (`+3` são três vitórias seguidas, `-2` duas derrotas seguidas), mais os teus totais de golos, assistências, defesas e remates. A linha **Por modo** separa o resultado em 1v1, 2v2 e 3v3.
+- **Reiniciar sessão** põe a sessão a zero **sem apagar o histórico**.
+- **Equipas:** um cartão por jogador com pontos, golos, assistências, defesas, remates, velocidade e barra de boost. O teu jogador fica destacado.
+- **Eventos:** golos, demolições, defesas e fim de partida, em direto.
+- Em baixo: **Ignorar partidas com bots** (ligado por defeito) e **Iniciar com o Windows**.
+
+### Histórico
+
+![Histórico](docs/historico.png)
+
+Cada partida contada fica guardada. Os filtros em cima escolhem o **período** (hoje, 7 dias, 30 dias, tudo), o **perfil**, o **modo** e a **vista**:
+
+- **Resumo:** um cartão por modo com jogos, vitórias/derrotas, win%, golos, assistências, defesas e remates por jogo, precisão e pontos, mais a lista das últimas partidas. **Clica numa partida** para a comparares com a tua média (a barra mostra o que ficou acima ou abaixo).
+- **Gráficos:** pensados para tirar conclusões, não só para ver números:
+  - **Win% pelo nº do jogo na sessão** (1.º, 2.º, 3.º…): mostra se rendes pior à medida que jogas. Uma sessão são jogos seguidos com menos de 1 hora entre eles.
+  - **Win% depois de ganhar / depois de perder:** mostra se uma derrota te faz jogar pior a seguir (tilt), comparado com o 1.º jogo da sessão.
+  - **Evolução por jogo:** média dos últimos 10 jogos de pontos, golos, assistências, defesas ou remates. Útil para veres se estás a melhorar mesmo quando o win% está parado.
+  - **Win% por hora do dia e por dia da semana**, com o melhor e o pior.
+- **Exportar CSV** gera um ficheiro que abre direto no Excel.
+
+![Gráficos](docs/graficos.png)
+
+O sinal `~` ao lado de um resultado significa que foi **estimado pelo placar** (por exemplo, saíste a meio) e pode não coincidir com o resultado oficial. Nos gráficos de barras, uma barra só aparece com pelo menos 3 partidas nesse grupo; com menos, fica um traço cinzento. Por baixo dos gráficos vês frases como "nos 3 primeiros jogos da sessão ganhas 60%; do 4.º em diante, 40%".
+
+### Treinador
+
+![Treinador](docs/treinador.png)
+
+Dicas automáticas calculadas a partir das tuas estatísticas (por exemplo, "perdes as partidas decididas por 1 golo" ou, com replays, "gastas muito tempo sem boost"). Funciona **offline e sem configuração**.
+
+Há ainda a **Análise com IA**, opcional:
+
+1. Configura o serviço em **Definições > Replays e IA** (secção 4).
+2. Carrega em **Analisar com IA**. A resposta marca cada ponto com **(dado)**, vindo dos teus números, ou **(hipótese)**, interpretação do modelo.
+3. **Ver dados enviados** mostra exatamente o que sai da tua máquina antes de enviares: destino, instruções e números. A chave nunca aparece.
+
+### Replays
+
+![Replays](docs/replays.png)
+
+Envia os replays do jogo para o Ballchasing e guarda as estatísticas deles para análise.
+
+1. Faz uma vez a configuração do Ballchasing (secção 4).
+2. No jogo, ativa o **guardar replays automaticamente** nas opções, para os ficheiros existirem.
+3. Carrega em **Sincronizar agora**, ou liga **Enviar automaticamente**.
+
+A tabela mostra posse de bola, boost por minuto, tempo sem boost, tempo atrás da bola e velocidade de cada replay. As médias no topo juntam todos eles. Clica numa linha para veres como esse replay se compara com a tua média, e em **abrir** para o veres no site.
+
+### Definições
+
+![Definições](docs/definicoes.png)
+
+Ver a secção seguinte.
+
+---
+
+## 4. Definições
+
+Três separadores. As mudanças de **idioma** e **escala** aplicam-se logo, sem reiniciar.
+
+### Geral
+
+| Opção | O que faz |
+|---|---|
+| Idioma | Português ou English |
+| Escala da interface | Auto, 100% a 200%. Útil em ecrãs 4K ou portáteis com zoom |
+| Iniciar em modo compacto | Abre já na barra pequena |
+| Fechar para a bandeja do sistema | Ao fechar a janela, a app fica no ícone da bandeja (precisa de `pystray` e `pillow`, que já vêm no exe) |
+| Avisar após derrotas seguidas | Desligado ou 2, 3, 4, 5 |
+| Avisar ao chegar a vitórias na sessão | Desligado ou 3, 5, 10 |
+| Tocar um som no aviso | Liga/desliga o som |
+
+Os avisos só contam partidas depois de abrires a app: ao arrancar não dispara nenhum.
+
+### Replays e IA
+
+**Ballchasing**
+
+1. Cria conta em [ballchasing.com](https://ballchasing.com) e vai a [ballchasing.com/upload](https://ballchasing.com/upload) para copiar a tua **chave de API**.
+2. Cola-a no campo e carrega em **Testar**.
+3. **Pastas dos replays:** por defeito é `Documentos\My Games\Rocket League\TAGame\Demos`. Podes adicionar outras com **+ Adicionar pasta**.
+4. **Visibilidade no Ballchasing:** Privado, Não listado ou Público.
+5. **Enviar replays:** só os novos, dos últimos 7 dias, dos últimos 30 dias ou todos.
+
+**Análise com IA**
+
+A app fala com qualquer serviço compatível com a API da OpenAI.
+
+1. Escolhe o **serviço** (Groq, Google Gemini, OpenRouter ou Outro) e cria uma chave de API no site dele. Vê aí o plano gratuito e os modelos disponíveis.
+2. Cola a **chave**. O **modelo** vem sugerido e podes mudá-lo.
+3. Com **Outro** indicas tu o **endereço** base (`.../v1`), por exemplo o de um modelo local no teu PC.
+4. Escolhe a **língua da resposta** (igual à da app, Português, English ou Español).
+
+### Dados e cópias
+
+- Lista os ficheiros de dados e o tamanho de cada um.
+- **Abrir pasta** abre a pasta onde estão.
+- **Exportar dados…** cria um `.zip` com os teus dados, **sem as chaves de API**, útil para mudares de PC.
+- **Cópia automática:** uma cópia por dia, ao abrir a app, numa pasta à tua escolha, e apaga as mais antigas (guarda 3, 7, 14 ou 30). **Fazer cópia agora** força uma.
+
+---
+
+## 5. Os teus dados e privacidade
+
+Tudo é guardado **no teu PC, na pasta do `.exe`**:
+
+| Ficheiro | Conteúdo |
+|---|---|
+| `profiles.json` | Os teus perfis e as sessões |
+| `history.db` | Histórico de partidas |
+| `replays.db` | Estatísticas dos replays analisados |
+| `settings.json` | Definições da app |
+| `ballchasing.json` | Chave do Ballchasing e opções |
+| `ai.json` | Chave e opções do serviço de IA |
+| `config.ini` | Opcional: pasta do jogo |
+| `backups\` | Cópias automáticas (sem chaves) |
+
+- **As chaves de API ficam em texto simples** nos ficheiros `ballchasing.json` e `ai.json`. Nunca os partilhes. As cópias automáticas e a exportação **não os incluem**.
+- **A app não envia nada para fora** sem o pedires. Só fala com a internet quando usas o Ballchasing (envia os replays) ou a análise com IA.
+- **IA:** só vão **números agregados** (vitórias, médias por modo, etc.), nunca nomes de jogadores nem ficheiros. Confirma sempre com **Ver dados enviados**.
+- Para desinstalar, apaga a pasta. Não há instalador nem registo no Windows, a não ser que ligues **Iniciar com o Windows**, que cria uma entrada de arranque (desligar o interruptor remove-a).
+
+---
+
+## 6. Problemas comuns
+
+**Fica em "Sem ligação ao jogo".**
+É normal fora de uma partida. Se também não liga durante uma partida: confirma que reiniciaste o Rocket League depois de a app ter configurado a Stats API (secção 2.1) e que a porta 49123 não está ocupada por outro programa.
+
+**"Stats API: não encontrei o DefaultStatsAPI.ini".**
+A app não achou a pasta do jogo. Define-a no `config.ini` (secção 2.1).
+
+**A partida não conta para a sessão.**
+Por defeito não contam: treino livre (sem adversários) e partidas com bots (desliga **Ignorar partidas com bots** se quiseres contá-las). Também não contam partidas em que saíste antes de haver placar útil. O feed de eventos explica o motivo.
+
+**Não me reconhece / "encontrado" não aparece.**
+Escreve o nome exatamente como no jogo (maiúsculas e minúsculas não importam, mas sufixos e símbolos sim) e escolhe a plataforma certa.
+
+**A app não abre uma segunda vez.**
+Só pode haver uma instância. Se já está aberta, aparece uma mensagem ou a janela é trazida para a frente. Procura-a na **bandeja do sistema**.
+
+**O Windows/antivírus bloqueia o exe.**
+Ver o aviso na secção 1. Podes gerar o exe tu mesmo (secção 8).
+
+**Ballchasing diz "chave inválida".**
+Copia a chave outra vez de [ballchasing.com/upload](https://ballchasing.com/upload), sem espaços, e carrega em **Testar**.
+
+**Quero recomeçar do zero.**
+Fecha a app e apaga `history.db` e `profiles.json`. Faz antes uma cópia ou uma exportação.
+
+---
+
+## 7. Como funciona e limitações
+
+A Stats API do Rocket League é um **socket TCP local** (`127.0.0.1:49123`) que envia objetos JSON, não um WebSocket verdadeiro. A app liga-se com um socket TCP simples e separa as mensagens concatenadas contando as chavetas.
+
+**Limitações da API oficial**
+
+- Só emite dados **durante uma partida** no teu PC e só dos jogadores dessa partida.
+- **Não dá MMR nem rank** (nem o teu, nem o dos outros), por isso a app foca-se em vitórias, derrotas e sequência. Para o teu próprio MMR existem plugins de [BakkesMod](https://bakkesmod.com), que são uma ferramenta separada.
+- **Não diz a playlist.** O modo (1v1, 2v2, 3v3) é inferido pelo tamanho das equipas, por isso **não distingue ranked de casual** nem separa Hoops/Rumble.
+
+**Como se decide vitória ou derrota**, por esta ordem:
+
+1. **`MatchEnded`**, em que o próprio jogo anuncia a equipa vencedora. É o caso normal.
+2. **Rede de segurança:** se esse evento não chegar, usa o último estado conhecido (`bHasWinner`/`Winner`) quando saís da partida.
+3. **Estimativa pelo placar:** se saíres antes de haver vencedor, usa o último placar. Fica marcado com `~` no histórico e "ESTIMATIVA pelo placar" no feed, porque **pode estar errado**.
+
+Se nem isso for possível, a partida não é contada.
+
+---
+
+## 8. Para programadores
+
+### Correr a partir do código
+
+Precisas de Python 3 recente (testado com 3.12) com Tkinter, que vem com o instalador oficial no Windows.
 
 ```bash
 python app.py
 ```
 
-Nao precisas de instalar nada — `app.py` so usa Tkinter (vem com o
-Python no Windows) e a biblioteca padrao (`asyncio`, `socket`). O
-`requirements.txt` so e' preciso para gerar o `.exe` (PyInstaller).
-
-Na janela:
-
-- Topo: placar, tempo de jogo, mapa e estado da ligacao.
-- Campo **"O teu nome no jogo"** — escreve aqui o teu nome exatamente
-  como aparece no Rocket League, para a app saber identificar-te e
-  contar vitorias/derrotas corretamente.
-- **Por modo** (linha por baixo das stats): resultado da sessao separado
-  por modo, ex. `1v1 2-1 · 2v2 5-3 · 3v3 0-1`. O modo e' inferido pelo
-  maior tamanho de equipa visto na partida (1 = 1v1, 2 = 2v2, 3 = 3v3,
-  outro = "Outro"). A Stats API nao diz a playlist, por isso **nao
-  distingue ranked de casual** (nem Hoops/Rumble, que aparecem como
-  2v2/3v3).
-- **Histórico** (separador "Histórico", dentro da janela principal): cada partida contada fica gravada em
-  `history.db` (SQLite, ao lado da app/.exe) e sobrevive a fechar a app.
-  O separador mostra stats por modo (jogos, V/D, win%, golos/assist./defesas/
-  remates por jogo, precisao de remate, pontos), as ultimas partidas, e
-  filtros por perfil/periodo/modo, com **Exportar CSV** (separador `;`,
-  abre bem no Excel). `~` marca resultados estimados pelo placar.
-  "Reiniciar sessao" nao apaga o historico.
-- **Perfis** (uma por conta, ex. a tua conta Steam e a tua conta Epic):
-  - O menu **Perfil** escolhe o perfil ativo; **+** cria um novo e
-    **Apagar** remove o ativo. O campo **nome** e a **plataforma**
-    (Qualquer/Steam/Epic) editam o perfil ativo.
-  - Cada perfil tem a **sua propria sessao** (vitorias, derrotas, streak,
-    totais). "Reiniciar sessao" so afeta o perfil ativo.
-  - Com **"Trocar auto"** ligado, quando comeca uma partida a app procura
-    um perfil cujo nome (igual, sem distinguir maiusculas) e plataforma
-    batam com um jogador da partida (a Stats API da' a plataforma no
-    `PrimaryId`, ex. `Steam|...` / `Epic|...`) e muda sozinha para ele,
-    avisando no feed de eventos. So' usa correspondencia exata -- se o teu
-    nome no jogo tiver sufixos, escreve-o exatamente como aparece.
-  - Os perfis ficam em `profiles.json`, ao lado da app/.exe. Na primeira
-    execucao o nome que tinhas em `config.ini` e' importado como perfil
-    "Qualquer" -- define-lhe a plataforma (Steam ou Epic).
-- Campo **"Destacar jogador"** — escreve um nome para destacar essa
-  linha na tabela (sem esconder os outros).
-- **Painel SESSAO ATUAL** — jogos, vitorias, derrotas, sequencia
-  (streak) e totais de golos/assistencias/defesas do teu jogador, desde
-  que abriste a app (ou desde o ultimo "Reiniciar sessao").
-- Caixa **"Nao contar partidas com bots (treino)"** (ligada por
-  defeito) — a Stats API nao diz qual e' o playlist/modo de jogo, por
-  isso nao ha forma oficial de distinguir ranked/casual/treino. O sinal
-  disponivel e' que bots reportam sempre `PrimaryId` "Unknown|0|0"; com
-  esta caixa ligada, partidas onde aparece pelo menos um bot (treino
-  contra IA, exibicao com bots a preencher vagas, etc.) ficam de fora da
-  sessao. Desliga-a se quiseres mesmo contar essas partidas.
-- Colunas Azul / Laranja com cartoes de cada jogador (pontos, golos,
-  assistencias, defesas, remates, demos, boost, velocidade).
-- Feed de eventos ao vivo (golos, demolicoes, fim de partida).
-
-A app liga-se automaticamente e fica em espera/retry enquanto o jogo nao
-abrir uma partida — nao precisas de ter o Rocket League aberto antes de
-correr a app.
+O `app.py` só usa a biblioteca padrão. O ícone da bandeja é opcional (`pip install pystray pillow`).
 
 ### Gerar o .exe
 
-Eu desenvolvo este projeto num ambiente Linux, por isso nao consigo
-compilar um `.exe` Windows diretamente — tens de gerar o `.exe` **na tua
-maquina Windows** (a mesma onde corre o Rocket League):
+No Windows, na pasta do projeto:
 
 ```bash
 build.bat
 ```
 
-Este script cria um ambiente virtual, instala o `pyinstaller` e gera o
-executavel em:
+Cria um ambiente virtual, instala o `requirements.txt` (PyInstaller, pystray, pillow), apaga builds antigas e gera `dist\RL-Live-Dashboard.exe` com as fontes incluídas. **Não apaga os teus dados** em `dist\`: faz cópia deles para `dados_backup\` antes de gerar. Se o `.exe` antigo estiver aberto ou bloqueado, fecha-o primeiro.
 
-```
-dist\RL-Live-Dashboard.exe
-```
-
-Esse `.exe` e' standalone — podes copia-lo para qualquer pasta e correr
-sem teres Python instalado. So precisa de estar na mesma maquina onde o
-Rocket League esta a correr (porque liga a um socket local).
-
-Se o `.exe` ja existir de uma build anterior e o build.bat nao conseguir
-substitui-lo, fecha primeiro a app antiga (pode estar ainda aberta ou
-bloqueada por antivirus) e corre `build.bat` outra vez.
-
-## 3. Opcao B — Script em linha de comando
+### Testes
 
 ```bash
-python rl_session_tracker.py
+pip install -r requirements-dev.txt
+python -m pytest
 ```
 
-(Tambem nao precisa de nenhuma instalacao extra.)
+Os testes cobrem a lógica de sessão, histórico, perfis, Ballchasing, IA (com servidores simulados), gráficos, cópias e traduções (verificam que todos os textos têm tradução em inglês).
 
-Opcoes uteis:
+### Estrutura
+
+| Ficheiro | Para que serve |
+|---|---|
+| `app.py` | Janela principal, navegação, avisos, bandeja |
+| `tracker_core.py` | Ligação à Stats API, estado e sessão (sem GUI) |
+| `stats_api_config.py` | Deteta o jogo e repara o `DefaultStatsAPI.ini` |
+| `profiles.py` | Perfis Steam/Epic e troca automática |
+| `history.py`, `history_page.py` | Histórico em SQLite e respetiva página |
+| `charts.py`, `compare.py` | Gráficos e comparação com a média |
+| `coach.py`, `coach_page.py`, `ai_coach.py` | Dicas offline e análise com IA |
+| `ballchasing.py`, `replays_page.py` | Replays e Ballchasing |
+| `settings_page.py`, `appsettings.py` | Definições |
+| `maintenance.py` | Cópias, exportação e instância única |
+| `tray.py` | Ícone da bandeja |
+| `ui_kit.py` | Tema e componentes (cartões, menus, abas, fontes) |
+| `i18n.py`, `i18n_en.py` | Traduções |
+| `rl_session_tracker.py` | Versão simples em linha de comandos |
+| `fonts/` | Fontes incluídas no exe |
+| `tests/` | Testes automáticos |
+
+### Traduções
+
+Os textos no código estão em português e servem de chave. Usa `tr("texto")` e acrescenta a tradução ao dicionário `EN` em `i18n_en.py`. Se faltar uma chave, aparece o português (e o teste avisa).
+
+### Ferramenta de linha de comandos
 
 ```bash
-# Seguir so um jogador especifico (o teu nome, por exemplo)
-python rl_session_tracker.py --player "OTeuNomeNoJogo"
-
-# Modo "dashboard" de texto que limpa o ecra a cada atualizacao
-python rl_session_tracker.py --live
-
-# Gravar stats por tick num CSV e todos os eventos em bruto num JSONL
-python rl_session_tracker.py --csv sessao.csv --log eventos.jsonl
-
-# Mostrar tambem eventos menos relevantes (BallHit, ClockUpdatedSeconds, ...)
-python rl_session_tracker.py --verbose
-
-# Mudar porta/host (se alteraste o Port no ini)
-python rl_session_tracker.py --port 49123
+python rl_session_tracker.py --player "OTeuNome" --csv sessao.csv --log eventos.jsonl
 ```
 
-## Ficheiros
+Outras opções: `--live` (ecrã de texto que se atualiza), `--verbose`, `--port`.
 
-- `app.py` — app com dashboard grafico (Tkinter).
-- `tracker_core.py` — logica de ligacao/estado/sessao, sem GUI (testavel
-  isoladamente).
-- `stats_api_config.py` — deteta o jogo e repara o `DefaultStatsAPI.ini`.
-- `history.py` — historico SQLite das partidas (`history.db`, criado pela app).
-- `history_page.py` — separador Histórico (stats por modo, lista, filtros, CSV).
-- `ui_kit.py` — tema e componentes visuais (cartões, botões, abas, switches).
-- `profiles.py` — perfis (Steam/Epic) e deteccao automatica do perfil.
-- `profiles.json` — os teus perfis (criado pela app).
-- `config.ini` — opcional: `[game] install_dir` (ver acima). O nome antigo `[player]` so' e' lido uma vez, para migrar.
-- `build.bat` — gera o `.exe` da app no Windows via PyInstaller (e copia
-  `config.ini` para `dist\`).
-- `rl_session_tracker.py` — versao em linha de comando.
-- `requirements.txt` — dependencia so' para o build (`pyinstaller`).
-- `README.md` — este guia.
+### Contribuir
 
-- `ballchasing.py` / `replays_page.py` — separador Replays: envia os replays para o Ballchasing e guarda as tuas stats (ballchasing.json + replays.db, ao lado do .exe).
-- `coach.py` / `coach_page.py` / `ai_coach.py` — separador Treinador: dicas offline por regras e análise opcional com IA na cloud (`ai.json`).
-- `settings_page.py` / `appsettings.py` — separador Definições: idioma (PT/EN), escala da interface, modo compacto ao iniciar, pastas dos replays, chave e visibilidade do Ballchasing, serviço de IA, abrir a pasta dos dados e exportar (zip sem chaves). Gravado em `settings.json`, ao lado do .exe. Idioma e escala mudam logo, sem reiniciar a app. Três secções: Geral (idioma, escala, bandeja, avisos da sessão), Replays e IA, Dados (ficheiros, exportar, cópia automática).
-- `i18n.py` / `i18n_en.py` — traduções. Os textos no código estão em português e servem de chave; `i18n_en.py` tem o dicionário inglês. Para acrescentar um texto, usa `tr("texto")` e junta a tradução ao `EN`. Se faltar uma chave, aparece o português.
-- `maintenance.py` — cópia de segurança diária (zip sem chaves, pasta e nº de cópias nas Definições), exportação e instância única (porta local 49199; a 2.ª instância só traz a 1.ª para a frente).
-- `tray.py` — ícone na bandeja (opcional, precisa de `pystray` e `pillow`; "Fechar para a bandeja" nas Definições).
-- `charts.py` / `compare.py` — gráficos do Histórico (win% móvel, por hora e por dia da semana) e a comparação "esta partida/replay vs a tua média".
-- `tests/` — testes automáticos: `pip install -r requirements-dev.txt` e depois `python -m pytest`.
+Os dados e as chaves estão no `.gitignore` (`profiles.json`, `settings.json`, `ballchasing.json`, `ai.json`, `*.db`, `backups/`, `dist/`). Confirma com `git status` antes de cada commit que nenhum aparece.
 
-## Avisos da sessão
-Em Definições > Geral podes pedir um aviso (banner + som) ao chegar a N derrotas seguidas ou a N vitórias na sessão. Ao abrir a app só se regista o estado atual, não se avisa.
+---
 
-## Análise com IA
-O botão "Ver dados enviados" mostra exatamente o que sai para o serviço (destino, instruções e números; a chave nunca). A resposta marca cada ponto como (dado) ou (hipótese).
+## Créditos
 
-## Git
-O repositório ignora os teus dados e chaves (`profiles.json`, `settings.json`, `ballchasing.json`, `ai.json`, `*.db`, `backups/`, `dist/`, `venv/`). Primeiro commit: `git add .` e `git commit -m "RL Live Dashboard"`.
+- Stats API: [Psyonix / Rocket League](https://www.rocketleague.com/developer/stats-api).
+- Replays: [Ballchasing](https://ballchasing.com).
+- Fonte: [Source Sans Pro](https://github.com/adobe-fonts/source-sans) (Adobe), licença SIL OFL (ver `fonts/LICENSE-SourceSans.txt`).
+
+Este projeto não é afiliado nem apoiado pela Psyonix ou pela Epic Games. Rocket League é uma marca registada da Psyonix.

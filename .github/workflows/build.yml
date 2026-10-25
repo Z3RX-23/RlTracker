@@ -1,0 +1,47 @@
+name: Build do .exe (Windows)
+
+# Corre sozinho ao criares uma tag (ex.: v1.1) e tambem a pedido
+# (separador Actions > "Build do .exe" > Run workflow).
+# Com tag, o exe e' anexado a uma Release automaticamente.
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Gerar o .exe
+        run: >
+          pyinstaller --onefile --windowed --icon "AppRL.ico"
+          --hidden-import i18n_en --hidden-import pystray._win32
+          --add-data "fonts;fonts" --name "RL-Live-Dashboard" app.py
+
+      - name: Guardar o exe como ficheiro do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: RL-Live-Dashboard
+          path: dist/RL-Live-Dashboard.exe
+
+      - name: Anexar a Release (so com tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/RL-Live-Dashboard.exe
+          generate_release_notes: true

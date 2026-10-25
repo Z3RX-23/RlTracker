@@ -14,7 +14,7 @@ import charts
 from compare import CompareStrip, compare_match
 from history import MODE_LABELS, MODES
 from i18n import tr
-from ui_kit import Bar, Card, FlatButton, Segmented, C, F, P, caption
+from ui_kit import WrapLabel, Bar, Card, FlatButton, Segmented, C, F, P, caption
 
 PERIODS = ["Hoje", "7 dias", "30 dias", "Tudo"]
 SCOPES = ["Perfil ativo", "Todos"]
@@ -103,36 +103,60 @@ class HistoryPage(tk.Frame):
 
     # ---- graficos ----------------------------------------------------------
 
+    METRICS = [("Pontos", "score", "pontos"), ("Golos", "goals", "golos"), ("Assist.", "assists", "assist."),
+               ("Defesas", "saves", "defesas"), ("Remates", "shots", "remates")]
+
     def _build_charts(self):
         self.charts_frame = tk.Frame(self, bg=C["bg"])
         self.chart_hint = tk.Label(self.charts_frame, text="", bg=C["bg"], fg=C["muted"],
                                    font=F(9), anchor="w")
         self.chart_hint.pack(side="bottom", fill="x", pady=(P(6), 0))
+        grid = tk.Frame(self.charts_frame, bg=C["bg"])
+        grid.pack(fill="x")
+        for i in range(3):
+            grid.columnconfigure(i, weight=1, uniform="ch")
 
-        def card(parent, title, side=None, **pk):
-            c = Card(parent, bg=C["surface"], radius=14, pad=12)
-            if side:
-                c.pack(side=side, fill="both", expand=True, **pk)
-            else:
-                c.pack(fill="x", **pk)
+        def card(title, row, col, span=1):
+            c = Card(grid, bg=C["surface"], radius=14, pad=12)
+            c.grid(row=row, column=col, columnspan=span, sticky="nsew",
+                   padx=(0 if col == 0 else P(5), 0 if col + span == 3 else P(5)),
+                   pady=(0 if row == 0 else P(10), 0))
             caption(c.body, title, color=C["accent"], bg=C["surface"]).pack(anchor="w", pady=(0, P(6)))
             return c.body
 
         hint = lambda t: self.chart_hint.config(text=t)
-        b = card(self.charts_frame, "Win % nos últimos 10 jogos (evolução)")
-        self.line_chart = charts.LineChart(b, C["surface"], height=140, on_hover=hint)
-        self.line_chart.pack(fill="x")
-        row = tk.Frame(self.charts_frame, bg=C["bg"])
-        row.pack(fill="x", pady=(P(10), 0))
-        b = card(row, "Win % por hora do dia", side="left", padx=(0, P(5)))
-        self.hour_chart = charts.BarChart(b, C["surface"], height=122, on_hover=hint)
+        b = card("Win % pelo nº do jogo na sessão", 0, 0)
+        self.pos_chart = charts.BarChart(b, C["surface"], height=118, on_hover=hint)
+        self.pos_chart.pack(fill="x")
+        b = card("Win % depois de ganhar / perder", 0, 1)
+        self.after_chart = charts.BarChart(b, C["surface"], height=118, on_hover=hint)
+        self.after_chart.pack(fill="x")
+        b = card("Evolução por jogo (média de 10)", 0, 2)
+        self.metric = self.METRICS[0][1]
+        Segmented(b, [m[0] for m in self.METRICS], self.METRICS[0][0], bg=C["surface"], size=8, px=6, py=2,
+                  command=self._set_metric).pack(anchor="w", pady=(0, P(4)))
+        self.trend_chart = charts.ValueChart(b, C["surface"], height=88, on_hover=hint, unit="pontos")
+        self.trend_chart.pack(fill="x")
+        b = card("Win % por hora do dia", 1, 0, span=2)
+        self.hour_chart = charts.BarChart(b, C["surface"], height=118, on_hover=hint)
         self.hour_chart.pack(fill="x")
-        b = card(row, "Win % por dia da semana", side="left", padx=(P(5), 0))
-        self.day_chart = charts.BarChart(b, C["surface"], height=122, on_hover=hint)
+        b = card("Win % por dia da semana", 1, 2)
+        self.day_chart = charts.BarChart(b, C["surface"], height=118, on_hover=hint)
         self.day_chart.pack(fill="x")
-        self.insight_lbl = tk.Label(self.charts_frame, text="", bg=C["bg"], fg=C["text"], font=F(9),
-                                    anchor="w", justify="left", wraplength=P(1000))
+        self.insight_lbl = WrapLabel(self.charts_frame, text="", bg=C["bg"], fg=C["text"], font=F(9),
+                                     anchor="w", justify="left", wraplength=P(900))
         self.insight_lbl.pack(fill="x", pady=(P(10), 0))
+        self._chart_rows = []
+
+    def _set_metric(self, label):
+        for lab, key, unit in self.METRICS:
+            if lab == label:
+                self.metric = key
+                self.trend_chart.set_unit(unit)
+        self._refresh_trend()
+
+    def _refresh_trend(self):
+        self.trend_chart.set(charts.rolling_avg(self._chart_rows, self.metric, 10))
 
     def _apply_view(self):
         for w in (self.cards_row, self.empty_lbl, self.table_card, self.charts_frame):
@@ -145,11 +169,26 @@ class HistoryPage(tk.Frame):
 
     def _refresh_charts(self, rows):
         self.chart_hint.config(text="")
-        self.line_chart.set(charts.rolling_win_pct(rows, 10))
+        self._chart_rows = rows
+        self._refresh_trend()
+        pos = charts.by_session_position(rows)
+        self.pos_chart.set([((f"{i + 1}+" if i == charts.POS_CAP - 1 else str(i + 1)), charts.pct(b), b[0])
+                            for i, b in enumerate(pos)])
+        aft = charts.after_result(rows)
+        self.after_chart.set([(tr(name), charts.pct(b), b[0]) for name, b in
+                              zip(("1.º jogo", "Após vitória", "Após derrota"), aft)])
         hours, days = charts.by_hour(rows), charts.by_weekday(rows)
         self.hour_chart.set([(f"{h}h", charts.pct(b), b[0]) for h, b in enumerate(hours)])
         self.day_chart.set([(tr(charts.WEEKDAYS[i]), charts.pct(b), b[0]) for i, b in enumerate(days)])
         lines = []
+        early = [sum(b[0] for b in pos[:3]), sum(b[1] for b in pos[:3])]
+        late = [sum(b[0] for b in pos[3:]), sum(b[1] for b in pos[3:])]
+        if early[0] >= 5 and late[0] >= 5:
+            lines.append(tr("Nos 3 primeiros jogos da sessão ganhas {a:.0f}% ({na} jogos); do 4.º em diante, {b:.0f}% ({nb} jogos).",
+                            a=charts.pct(early), na=early[0], b=charts.pct(late), nb=late[0]))
+        if aft[1][0] >= 5 and aft[2][0] >= 5:
+            lines.append(tr("Depois de ganhar ganhas {a:.0f}% ({na} jogos); depois de perder, {b:.0f}% ({nb} jogos).",
+                            a=charts.pct(aft[1]), na=aft[1][0], b=charts.pct(aft[2]), nb=aft[2][0]))
         bw = charts.best_worst(hours)
         if bw:
             g, w = bw
@@ -163,8 +202,8 @@ class HistoryPage(tk.Frame):
                             a=tr(charts.WEEKDAYS[g]), pa=charts.pct(days[g]), na=days[g][0],
                             b=tr(charts.WEEKDAYS[w]), pb=charts.pct(days[w]), nb=days[w][0]))
         if lines:
-            lines.append(tr("Só há barra com pelo menos {n} jogos; um traço cinzento na base quer dizer poucos jogos.",
-                            n=charts.MIN_BUCKET))
+            lines.append(tr("Uma sessão são jogos seguidos com menos de 1 h entre eles. Só há barra com pelo menos {n} jogos; "
+                            "um traço cinzento na base quer dizer poucos jogos.", n=charts.MIN_BUCKET))
         elif rows:
             lines.append(tr("Ainda há poucos jogos por hora/dia para tirar conclusões."))
         else:
