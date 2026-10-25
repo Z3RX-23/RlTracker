@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS matches (
 );
 CREATE INDEX IF NOT EXISTS idx_matches_ts ON matches(ts);
 CREATE INDEX IF NOT EXISTS idx_matches_profile ON matches(profile_id);
+CREATE TABLE IF NOT EXISTS mmr_log (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts         TEXT NOT NULL,
+    profile_id TEXT,
+    mode       TEXT NOT NULL,
+    mmr        INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_mmr_mode ON mmr_log(mode, ts);
 """
 
 _FIELDS = ["ts", "profile_id", "profile_name", "platform", "mode", "won",
@@ -92,6 +100,39 @@ class MatchHistory:
                     f"INSERT INTO matches ({','.join(_FIELDS)}) "
                     f"VALUES ({','.join('?' * len(_FIELDS))})",
                     [row[k] for k in _FIELDS])
+            return True
+        except (sqlite3.Error, OSError):
+            return False
+
+    def add_mmr(self, mode, mmr, profile_id=None, ts=None):
+        from datetime import datetime
+        ts = ts or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        try:
+            with self._lock, self._conn() as c:
+                c.execute("INSERT INTO mmr_log (ts, profile_id, mode, mmr) VALUES (?,?,?,?)",
+                          (ts, profile_id, mode, int(mmr)))
+            return True
+        except (sqlite3.Error, OSError):
+            return False
+
+    def mmr_entries(self, mode, profile_id=None):
+        """Registos de MMR (mais antigo primeiro)."""
+        where, args = self._where(profile_id, None, mode)
+        try:
+            with self._conn() as c:
+                rows = c.execute("SELECT * FROM mmr_log" + where +
+                                 " ORDER BY ts, id", args).fetchall()
+            return [dict(r) for r in rows]
+        except (sqlite3.Error, OSError):
+            return []
+
+    def delete_last_mmr(self, mode, profile_id=None):
+        es = self.mmr_entries(mode, profile_id)
+        if not es:
+            return False
+        try:
+            with self._lock, self._conn() as c:
+                c.execute("DELETE FROM mmr_log WHERE id = ?", (es[-1]["id"],))
             return True
         except (sqlite3.Error, OSError):
             return False

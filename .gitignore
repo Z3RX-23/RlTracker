@@ -3,6 +3,7 @@ profiles.json
 settings.json
 ballchasing.json
 ai.json
+rlapi.json
 history.db
 replays.db
 *.db-journal
@@ -26,15 +27,3 @@ __pycache__/
 *.pre_*
 *.pre_*.py
 _backup_pre_remocao_rank/
-
-# Pasta de ficheiros para apagar + icones duplicados (so o AppRL.ico e usado)
-_to_delete/
-AppRL16.ico
-AppRL24.ico
-AppRL32.ico
-AppRL48.ico
-AppRL64.ico
-AppRL96.ico
-AppRL128.ico
-AppRL256.ico
-.git/stale-index-lock

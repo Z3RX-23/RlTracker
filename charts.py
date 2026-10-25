@@ -274,3 +274,70 @@ class BarChart(_Base):
                 else:
                     self._on_hover(tr("{l}: {p:.0f}% de vitórias em {n} jogos", l=label, p=p, n=n))
                 return
+
+
+class MMRChart(_Base):
+    """MMR registado ao longo do TEMPO (eixo X = data/hora real). Aceita varias
+    linhas (uma por modo); a do modo escolhido fica em destaque."""
+    LEFT = 40
+
+    def set_series(self, series, active=None):
+        """series: [{"mode", "label", "color", "points": [(datetime, mmr)]}]"""
+        self._series = [s for s in series if s["points"]]
+        self._active = active
+        self._data = [p for s in self._series for p in s["points"]]
+        self.redraw()
+
+    def redraw(self):
+        super().redraw()
+        x0, y0, x1, y1 = self._area()
+        if x1 - x0 < 20:
+            return
+        ser = getattr(self, "_series", [])
+        if not any(len(s["points"]) >= 2 for s in ser):
+            self.create_text((x0 + x1) / 2, (y0 + y1) / 2,
+                             text=tr("Regista o MMR pelo menos duas vezes para ver o gráfico."),
+                             fill=C["dim"], font=F(9))
+            return
+        vals = [v for _, v in self._data]
+        lo, hi = min(vals), max(vals)
+        pad = max(10, (hi - lo) * 0.15)
+        lo, hi = lo - pad, hi + pad
+        t0 = min(t for t, _ in self._data)
+        t1 = max(t for t, _ in self._data)
+        span = max(1.0, (t1 - t0).total_seconds())
+        for frac in (0, 0.5, 1):
+            y = y1 - (y1 - y0) * frac
+            self.create_line(x0, y, x1, y, fill=C["border"], dash=(3, 3) if frac == 0.5 else ())
+            self.create_text(x0 - P(6), y, text=f"{lo + (hi - lo) * frac:.0f}", anchor="e",
+                             fill=C["dim"], font=F(7))
+        self._pts = []
+        order = sorted(ser, key=lambda s: s["mode"] == self._active)       # o ativo desenha por cima
+        for s in order:
+            on = s["mode"] == self._active or len(ser) == 1
+            xy = [(x0 + (x1 - x0) * (t - t0).total_seconds() / span,
+                   y1 - (y1 - y0) * (v - lo) / (hi - lo)) for t, v in s["points"]]
+            if len(xy) >= 2:
+                self.create_line(*[c for p in xy for c in p], fill=s["color"],
+                                 width=max(2, P(2)) if on else 1, dash=() if on else (4, 3))
+            lx, ly = xy[-1]
+            r = P(3) if on else P(2)
+            self.create_oval(lx - r, ly - r, lx + r, ly + r, fill=s["color"], outline="")
+            for (x, y), (t, v) in zip(xy, s["points"]):
+                self._pts.append((x, y, s, t, v))
+        fmt = "%d/%m %H:%M" if span < 86400 * 2 else "%d/%m"
+        self.create_text(x0, y1 + P(10), text=t0.strftime(fmt), anchor="w", fill=C["dim"], font=F(7))
+        self.create_text(x1, y1 + P(10), text=t1.strftime(fmt), anchor="e", fill=C["dim"], font=F(7))
+        if len(ser) > 1:
+            x = x0 + P(8)
+            for s in ser:
+                self.create_rectangle(x, y0 + P(2), x + P(8), y0 + P(8), fill=s["color"], outline="")
+                self.create_text(x + P(12), y0 + P(5), text=s["label"], anchor="w", fill=C["muted"], font=F(7))
+                x += P(46)
+
+    def _motion(self, e):
+        pts = getattr(self, "_pts", None)
+        if not pts or not self._on_hover:
+            return
+        x, y, s, t, v = min(pts, key=lambda p: abs(p[0] - e.x) + abs(p[1] - e.y) * 0.3)
+        self._on_hover(tr("{m}: {v} MMR em {t}", m=s["label"], v=v, t=t.strftime("%d/%m/%Y %H:%M")))

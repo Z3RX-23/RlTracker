@@ -23,6 +23,7 @@ DATA_FILES = [
     ("settings.json", "Definições gerais", False),
     ("ballchasing.json", "Ballchasing (contém a chave)", True),
     ("ai.json", "Serviço de IA (contém a chave)", True),
+    ("rlapi.json", "MMR automático (contém a chave)", True),
 ]
 
 BACKUP_PREFIX = "rl_backup_"

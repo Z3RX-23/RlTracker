@@ -18,11 +18,12 @@ from tkinter import filedialog, messagebox
 import ai_coach
 import appsettings
 import maintenance
+import rlapi
 import tray as tray_mod
 from maintenance import DATA_FILES
 from ballchasing import (SINCE_OPTIONS, VISIBILITIES, VISIBILITY_LABELS, BallchasingError, Client)
 from i18n import LANGUAGES, tr
-from ui_kit import Card, Dropdown, FlatButton, Segmented, Switch, Tabs, C, F, P, caption, make_entry
+from ui_kit import WrapLabel, Card, Dropdown, FlatButton, Segmented, Switch, Tabs, C, F, P, caption, make_entry
 
 SCALE_LABELS = {"auto": "Auto", "100%": "100%", "125%": "125%", "150%": "150%",
                 "175%": "175%", "200%": "200%"}
@@ -75,7 +76,7 @@ class SettingsPage(tk.Frame):
         right.grid(row=0, column=1, sticky="nsew", padx=(P(5), 0))
         return left, right
 
-    SECTIONS = ["Geral", "Replays e IA", "Dados e cópias"]
+    SECTIONS = ["Geral", "Replays e IA", "MMR", "Dados e cópias"]
 
     def _build_sections(self):
         nav = tk.Frame(self, bg=C["bg"])
@@ -89,6 +90,9 @@ class SettingsPage(tk.Frame):
         l, r = self._two_columns("Replays e IA")
         self._build_ballchasing(l)
         self._build_ai(r)
+        l, r = self._two_columns("MMR")
+        self._build_mmr(l)
+        self._build_mmr_help(r)
         l, r = self._two_columns("Dados e cópias")
         self._build_data(l)
         self._build_backup(r)
@@ -236,6 +240,8 @@ class SettingsPage(tk.Frame):
                      fg=C["warn"] if secret and size else C["dim"], font=F(8)).pack(side="right")
 
     def refresh(self):
+        if hasattr(self, "mmr_id"):
+            self._mmr_id_load()
         self._render_files()
 
     def _open_folder(self):
@@ -325,6 +331,122 @@ class SettingsPage(tk.Frame):
         maintenance.run_backup_async(
             appsettings._BASE_DIR, self.app.backup_folder(), self.app.backup_keep,
             lambda path, err: self._q.put(("backup", path, err)))
+
+    # ---- MMR automatico ------------------------------------------------------
+
+    def _build_mmr(self, parent):
+        b = _card(parent, "MMR automático")
+        st = rlapi.SETTINGS
+        caption(b, "Chave da API (RapidAPI)", bg=C["surface"]).pack(anchor="w")
+        row = tk.Frame(b, bg=C["surface"])
+        row.pack(fill="x", pady=(P(2), 0))
+        self.mmr_key = make_entry(row, width=30)
+        self.mmr_key.config(show="•")
+        self.mmr_key.insert(0, st.api_key)
+        self.mmr_key.pack(side="left", fill="x", expand=True, ipady=P(3))
+        self.mmr_key.bind("<KeyRelease>", self._mmr_key_changed)
+        FlatButton(row, "Testar", self._mmr_test).pack(side="left", padx=(P(8), 0))
+        self.mmr_status = tk.Label(b, text="", bg=C["surface"], fg=C["dim"], font=F(8), anchor="w",
+                                   justify="left", wraplength=P(430))
+        self.mmr_status.pack(fill="x", pady=(P(3), P(10)))
+        self._mmr_usage()
+
+        self.mmr_id_cap = caption(b, "", bg=C["surface"])
+        self.mmr_id_cap.pack(anchor="w")
+        self.mmr_id = make_entry(b, width=30)
+        self.mmr_id.pack(fill="x", ipady=P(3), pady=(P(2), P(2)))
+        self.mmr_id.bind("<KeyRelease>", self._mmr_id_changed)
+        tk.Label(b, text=tr("Na Steam usa o custom URL (steamcommunity.com/id/…) — cola o link inteiro se quiseres. "
+                            "Se ficar vazio usa o nome do perfil."),
+                 bg=C["surface"], fg=C["dim"], font=F(8), anchor="w", justify="left",
+                 wraplength=P(430)).pack(fill="x", pady=(0, P(10)))
+        self._mmr_id_load()
+
+        self.mmr_auto_var = tk.BooleanVar(value=st.auto)
+        Switch(b, "Atualizar o MMR no início e no fim da sessão", self.mmr_auto_var, self._mmr_set_auto,
+               bg=C["surface"]).pack(anchor="w", pady=(0, P(10)))
+        caption(b, "Consultar também durante a sessão", bg=C["surface"]).pack(anchor="w", pady=(0, P(3)))
+        cur = rlapi.INTERVAL_LABELS.get(st.interval, rlapi.INTERVAL_LABELS[0])
+        Segmented(b, [rlapi.INTERVAL_LABELS[i] for i in rlapi.INTERVALS], cur, bg=C["surface2"],
+                  command=self._mmr_set_interval, px=10, py=5).pack(anchor="w")
+
+    def _build_mmr_help(self, parent):
+        b = _card(parent, "Como ativar")
+        txt = tr("1. Cria conta em rapidapi.com e abre a API \"Rocket League\" (rocket-league10).\n"
+                 "2. Subscreve o plano Basic (grátis: 10 pedidos por dia) — a RapidAPI pede cartão mas não cobra.\n"
+                 "3. Copia a tua chave (x-rapidapi-key) para o campo ao lado e carrega em Testar (gasta 1 pedido).\n"
+                 "4. Na Epic o nome do perfil serve; na Steam preenche o identificador (custom URL).\n\n"
+                 "Cada pessoa usa a sua própria chave e tem os seus 10 pedidos por dia. A app gasta 1 pedido ao abrir, "
+                 "1 quando a sessão acaba (10 min sem jogar, ou ao fechar a app) e 1 sempre que carregas em "
+                 "\"Atualizar do jogo\". O contador mostra quantos já usaste hoje.\n\n"
+                 "É uma consulta ao teu perfil público numa API de terceiros: não toca no jogo nem no anti-cheat. "
+                 "O MMR pode demorar alguns minutos a refletir o último jogo.")
+        WrapLabel(b, text=txt, bg=C["surface"], fg=C["muted"], font=F(9), anchor="w",
+                  justify="left", wraplength=P(430)).pack(fill="x")
+
+    def _mmr_id_load(self):
+        prof = rlapi.ACTIVE.active() if rlapi.ACTIVE else None
+        if not prof:
+            return
+        self.mmr_id_cap.config(text=tr("Identificador para o MMR — {p}", p=prof.name or tr("(sem nome)")).upper())
+        self.mmr_id.delete(0, "end")
+        self.mmr_id.insert(0, rlapi.SETTINGS.ids.get(prof.id, ""))
+
+    def _mmr_id_changed(self, _e=None):
+        prof = rlapi.ACTIVE.active() if rlapi.ACTIVE else None
+        if not prof:
+            return
+        v = rlapi.clean_id(self.mmr_id.get())
+        if v:
+            rlapi.SETTINGS.ids[prof.id] = v
+        else:
+            rlapi.SETTINGS.ids.pop(prof.id, None)
+        rlapi.SETTINGS.save()
+
+    def _mmr_usage(self):
+        st = rlapi.SETTINGS
+        self._mmr_msg(tr("Pedidos usados hoje: {u}/{m}", u=st.used_today(), m=st.daily_limit))
+
+    def _mmr_msg(self, text, color=None):
+        self.mmr_status.config(text=text, fg=color or C["dim"])
+
+    def _mmr_key_changed(self, _e=None):
+        rlapi.SETTINGS.api_key = self.mmr_key.get().strip()
+        rlapi.SETTINGS.save()
+
+    def _mmr_set_auto(self):
+        rlapi.SETTINGS.auto = bool(self.mmr_auto_var.get())
+        rlapi.SETTINGS.save()
+
+    def _mmr_set_interval(self, label):
+        for k, v in rlapi.INTERVAL_LABELS.items():
+            if tr(v) == label or v == label:
+                rlapi.SETTINGS.interval = k
+        rlapi.SETTINGS.save()
+
+    def _mmr_test(self):
+        self._mmr_key_changed()
+        key = rlapi.SETTINGS.api_key
+        self._mmr_msg(tr("A testar a ligação…"), C["muted"])
+
+        def work():
+            import json as _j, urllib.request as _u, urllib.error as _e
+            try:
+                req = _u.Request(rlapi.BASE_URL + "/ping", headers={"x-rapidapi-host": rlapi.HOST,
+                                 "x-rapidapi-key": key, "User-Agent": rlapi.USER_AGENT})
+                with _u.urlopen(req, timeout=20) as r:
+                    ok = "pong" in r.read().decode("utf-8", "replace")
+                    rlapi.SETTINGS.note_headers({k.lower(): v for k, v in r.headers.items()})
+                st = rlapi.SETTINGS
+                msg = (tr("Ligado à API.") if ok else tr("Resposta inesperada.")) + "  " + \
+                    tr("Pedidos usados hoje: {u}/{m}", u=st.used_today(), m=st.daily_limit)
+                self._q.put(("ok" if ok else "err", msg, "mmr"))
+            except _e.HTTPError as e:
+                msg = tr("Chave recusada (ou sem subscrição ao plano).") if e.code in (401, 403) else tr("Erro da API (HTTP {c}).", c=e.code)
+                self._q.put(("err", msg, "mmr"))
+            except Exception as e:
+                self._q.put(("err", tr("Sem ligação à API: {err}", err=e), "mmr"))
+        threading.Thread(target=work, daemon=True).start()
 
     # ---- Ballchasing -------------------------------------------------------
 
@@ -496,6 +618,9 @@ class SettingsPage(tk.Frame):
                                                fg=C["bad"])
                     else:
                         self._render_backup()
+                    continue
+                if extra == "mmr":
+                    self._mmr_msg(text, C["good"] if kind == "ok" else C["bad"])
                     continue
                 self._bc_msg(text, C["good"] if kind == "ok" else C["bad"])
         except queue.Empty:

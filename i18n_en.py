@@ -436,4 +436,82 @@ EN = {
     "Modelo: {m}": "Model: {m}",
     "INSTRUÇÕES (sistema)": "INSTRUCTIONS (system)",
     "DADOS (as tuas stats)": "DATA (your stats)",
+    "MMR": "MMR",
+    "MMR REGISTADO": "LOGGED MMR",
+    "EVOLUÇÃO DO MMR": "MMR OVER TIME",
+    "ATUAL": "CURRENT",
+    "HOJE": "TODAY",
+    "7 DIAS": "7 DAYS",
+    "MELHOR": "BEST",
+    "REGISTOS": "ENTRIES",
+    "Guardar MMR": "Save MMR",
+    "Apagar último registo": "Delete last entry",
+    "sem registos neste modo": "no entries in this mode",
+    "  ({d} hoje)": "  ({d} today)",
+    "Escreve só o número (ex.: 1043).": "Type just the number (e.g. 1043).",
+    "Não consegui gravar.": "Could not save.",
+    "Regista o MMR pelo menos duas vezes para ver o gráfico.": "Log your MMR at least twice to see the chart.",
+    "Registo #{n}: {v} MMR": "Entry #{n}: {v} MMR",
+    "Ganhas em média {v:+.0f} MMR por vitória (com {n} jogos medidos).":
+        "You gain {v:+.0f} MMR per win on average (from {n} measured games).",
+    "Perdes em média {v:+.0f} MMR por derrota (com {n} jogos medidos).":
+        "You lose {v:+.0f} MMR per loss on average (from {n} measured games).",
+    "Para calcular quanto ganhas/perdes por jogo, regista o MMR depois de CADA jogo "
+    "(só contam intervalos com exatamente um jogo, mínimo {n} de cada).":
+        "To work out how much you gain/lose per game, log your MMR after EVERY game "
+        "(only gaps with exactly one game count, at least {n} of each).",
+    "O MMR é escrito por ti — a Stats API do jogo não o fornece.":
+        "You enter the MMR yourself — the game's Stats API does not provide it.",
+    "MMR AUTOMÁTICO": "AUTOMATIC MMR",
+    "COMO ATIVAR": "HOW TO ENABLE",
+    "CHAVE DA API (RAPIDAPI)": "API KEY (RAPIDAPI)",
+    "Atualizar o MMR no início e no fim da sessão": "Update MMR at the start and end of the session",
+    "Pedidos hoje: {u}/{m}": "Requests today: {u}/{m}",
+    "Atualizar do jogo": "Update from game",
+    "A consultar o MMR…": "Fetching MMR…",
+    "  · sem alterações": "  · no changes",
+    "Falta a chave da API (Definições > MMR).": "API key missing (Settings > MMR).",
+    "Chave da API recusada (ou sem subscrição ao plano).": "API key rejected (or not subscribed to the plan).",
+    "Chave recusada (ou sem subscrição ao plano).": "Key rejected (or not subscribed to the plan).",
+    "Jogador não encontrado ({p}: {n}). Confirma o nome e a plataforma.":
+        "Player not found ({p}: {n}). Check the name and platform.",
+    "Limite de pedidos da API atingido.": "API request limit reached.",
+    "Erro da API (HTTP {c}).": "API error (HTTP {c}).",
+    "Sem ligação à API: {err}": "Could not reach the API: {err}",
+    "O perfil não tem nome no jogo.": "The profile has no in-game name.",
+    "Já usaste os {n} pedidos de hoje.": "You have used all {n} requests for today.",
+    "Sem resposta da API.": "No response from the API.",
+    "Ligado à API.": "Connected to the API.",
+    "Resposta inesperada.": "Unexpected response.",
+    "Pedidos usados hoje: {u}/{m}": "Requests used today: {u}/{m}",
+    "1. Cria conta em rapidapi.com e abre a API \"Rocket League\" (rocket-league10).\n"
+    "2. Subscreve o plano Basic (grátis: 10 pedidos por dia) — a RapidAPI pede cartão mas não cobra.\n"
+    "3. Copia a tua chave (x-rapidapi-key) para o campo ao lado e carrega em Testar (gasta 1 pedido).\n"
+    "4. Na Epic o nome do perfil serve; na Steam preenche o identificador (custom URL).\n\n"
+    "Cada pessoa usa a sua própria chave e tem os seus 10 pedidos por dia. A app gasta 1 pedido ao abrir, "
+    "1 quando a sessão acaba (10 min sem jogar, ou ao fechar a app) e 1 sempre que carregas em "
+    "\"Atualizar do jogo\". O contador mostra quantos já usaste hoje.\n\n"
+    "É uma consulta ao teu perfil público numa API de terceiros: não toca no jogo nem no anti-cheat. "
+    "O MMR pode demorar alguns minutos a refletir o último jogo.":
+        "1. Create an account at rapidapi.com and open the \"Rocket League\" API (rocket-league10).\n"
+        "2. Subscribe to the Basic plan (free: 10 requests per day) — RapidAPI asks for a card but does not charge.\n"
+        "3. Copy your key (x-rapidapi-key) into the field next to this and press Test (uses 1 request).\n"
+        "4. On Epic the profile name works; on Steam fill in the identifier (custom URL).\n\n"
+        "Everyone uses their own key and gets their own 10 requests per day. The app spends 1 request on launch, "
+        "1 when the session ends (10 min without playing, or when you close the app) and 1 each time you press "
+        "\"Update from game\". The counter shows how many you used today.\n\n"
+        "This is a lookup of your public profile on a third-party API: it does not touch the game or the anti-cheat. "
+        "The MMR can take a few minutes to reflect your last game.",
+    "Identificador para o MMR — {p}": "ID for MMR — {p}",
+    "Na Steam usa o custom URL (steamcommunity.com/id/…) — cola o link inteiro se quiseres. Se ficar vazio usa o nome do perfil.":
+        "On Steam use the custom URL (steamcommunity.com/id/…) — you can paste the whole link. If left empty the profile name is used.",
+    "CONSULTAR TAMBÉM DURANTE A SESSÃO": "ALSO CHECK DURING THE SESSION",
+    "30 min": "30 min",
+    "1 h": "1 h",
+    "2 h": "2 h",
+    "Só no fim da sessão": "Only at session end",
+    "Só este modo": "This mode only",
+    "Todos os modos": "All modes",
+    "{m}: {v} MMR em {t}": "{m}: {v} MMR on {t}",
+    "Variação": "Change",
 }

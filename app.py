@@ -23,6 +23,10 @@ import maintenance
 import tray as tray_mod
 import stats_api_config
 from i18n import tr
+import rlapi
+import threading
+import time
+from mmr_ui import MMRBox
 from history import MODE_LABELS, MODES, MatchHistory
 from coach_page import CoachPage
 from history_page import HistoryPage
@@ -162,6 +166,7 @@ class DashboardGUI:
         self.PLACEHOLDER = tr("escreve o teu nome...")
         self.profiles = ProfileManager()
         self.history = MatchHistory()
+        rlapi.ACTIVE = self.profiles
         self._ui_profile_id = None
         self._shared_name = SharedName()
         self._name_is_placeholder = True
@@ -173,6 +178,8 @@ class DashboardGUI:
         self._alert_seeded = False
         self._alert = None            # (texto, cor) do aviso visivel
         self._last_snap = {}
+        self._mmr_dirty = False
+        self._mmr_idle_id = None
         self.tray = tray_mod.Tray(tr("Mostrar"), tr("Sair"))
         self.ai_settings = ai_coach.AISettings()
         self._build_ui()
@@ -193,6 +200,8 @@ class DashboardGUI:
         self._poll_queue()
         self._api_check_loop()
         self._backup_loop()
+        self.root.after(8000, self._mmr_session_start)
+        self.root.after(60000, self._mmr_tick)
 
     def _build_ui(self):
         self._init_window()
@@ -422,6 +431,13 @@ class DashboardGUI:
         self.modes_row.pack(side="left")
         self._render_mode_chips({})
 
+        r4 = tk.Frame(b, bg=C["surface"])
+        r4.pack(fill="x", pady=(P(10), 0))
+        caption(r4, "MMR", bg=C["surface"]).pack(side="left", padx=(0, P(12)))
+        self.mmr_box = MMRBox(r4, self.history, self.profiles, C["surface"])
+        self.mmr_box.pack(side="left")
+        self.mmr_box.on_sync = lambda: setattr(self, "_mmr_dirty", False)
+
     def _render_mode_chips(self, by_mode):
         for w in self.modes_row.winfo_children():
             w.destroy()
@@ -538,6 +554,8 @@ class DashboardGUI:
         """Poe o perfil ativo na GUI (nome, plataforma, menus)."""
         prof = self.profiles.active()
         self._ui_profile_id = prof.id
+        if hasattr(self, "mmr_box"):
+            self.mmr_box.refresh()
         self.name_entry.delete(0, "end")
         if prof.name:
             self.name_entry.insert(0, prof.name)
@@ -801,6 +819,10 @@ class DashboardGUI:
 
     def _update_session(self, snap):
         games = snap.get("games", 0)
+        prev = getattr(self, "_last_games", None)
+        self._last_games = games
+        if prev is not None and games > prev:
+            self._mmr_game_played()
         wins = snap.get("wins", 0)
         losses = snap.get("losses", 0)
         streak = snap.get("streak_text", "-")
@@ -882,6 +904,63 @@ class DashboardGUI:
 
     def _on_reset(self):
         self.core.reset_session()
+        if self._mmr_dirty and self._mmr_auto_ok() and hasattr(self, "mmr_box"):
+            self._mmr_dirty = False
+            self.mmr_box.refresh_online(silent=True)       # fim da sessao anterior
+
+    # ── MMR automatico: 1 pedido no inicio, 1 no fim da sessao ───────────────
+
+    MMR_IDLE_MS = 10 * 60 * 1000
+
+    @staticmethod
+    def _mmr_auto_ok():
+        st = rlapi.SETTINGS
+        return bool(st.api_key and st.auto and st.left_today() > 0)
+
+    def _mmr_session_start(self):
+        if self._mmr_auto_ok() and hasattr(self, "mmr_box"):
+            self.mmr_box.refresh_online(silent=True)
+
+    def _mmr_tick(self):
+        """Consulta periodica durante a sessao (so' se escolheste um intervalo e houve jogos)."""
+        try:
+            st = rlapi.SETTINGS
+            if (st.interval and self._mmr_dirty and self._mmr_auto_ok() and hasattr(self, "mmr_box")
+                    and time.time() - rlapi.LAST_SYNC >= st.interval * 60):
+                self._mmr_dirty = False
+                self.mmr_box.refresh_online(silent=True)
+        finally:
+            self.root.after(60000, self._mmr_tick)
+
+    def _mmr_game_played(self):
+        self._mmr_dirty = True
+        if self._mmr_idle_id:
+            try:
+                self.root.after_cancel(self._mmr_idle_id)
+            except tk.TclError:
+                pass
+        self._mmr_idle_id = self.root.after(self.MMR_IDLE_MS, self._mmr_session_end)
+
+    def _mmr_session_end(self):
+        self._mmr_idle_id = None
+        if self._mmr_dirty and self._mmr_auto_ok() and hasattr(self, "mmr_box"):
+            self._mmr_dirty = False
+            self.mmr_box.refresh_online(silent=True)
+
+    def _mmr_final_sync(self):
+        """Ao fechar a app com jogos por registar: 1 consulta, no maximo 5 s."""
+        if not (self._mmr_dirty and self._mmr_auto_ok()):
+            return
+        prof = self.profiles.active()
+
+        def work():
+            try:
+                rlapi.refresh_mmr(self.history, prof, rlapi.SETTINGS)
+            except Exception:
+                pass
+        t = threading.Thread(target=work, daemon=True)
+        t.start()
+        t.join(5)
 
     # ── Avisos da sessao (tilt stop / objetivo) ─────────────────────────────
 
@@ -967,6 +1046,7 @@ class DashboardGUI:
             self.quit()
 
     def quit(self):
+        self._mmr_final_sync()
         self.tray.stop()
         if self.single:
             self.single.release()

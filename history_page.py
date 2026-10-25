@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from tkinter import filedialog, messagebox, ttk
 
 import charts
+from mmr_ui import MMRPanel
 from compare import CompareStrip, compare_match
 from history import MODE_LABELS, MODES
 from i18n import tr
@@ -19,7 +20,7 @@ from ui_kit import WrapLabel, Bar, Card, FlatButton, Segmented, C, F, P, caption
 PERIODS = ["Hoje", "7 dias", "30 dias", "Tudo"]
 SCOPES = ["Perfil ativo", "Todos"]
 MODE_FILTERS = ["Todos"] + [MODE_LABELS[m] for m in MODES]
-VIEWS = ["Resumo", "Gráficos"]
+VIEWS = ["Resumo", "Gráficos", "MMR"]
 
 RECENT_COLS = [
     ("ts", "Data", 150, "w"), ("perfil", "Perfil", 130, "w"), ("modo", "Modo", 60, "w"),
@@ -64,7 +65,7 @@ class HistoryPage(tk.Frame):
             box.pack(side="left", padx=(0, P(16)))
             caption(box, label, bg=C["bg"]).pack(anchor="w", pady=(0, P(3)))
             Segmented(box, opts, getattr(self, attr), bg=C["surface"],
-                      command=lambda v, a=attr: self._set(a, v), px=11, py=5).pack(anchor="w")
+                      command=lambda v, a=attr: self._set(a, v), px=8, py=5).pack(anchor="w")
         FlatButton(bar, "Exportar CSV", self._export, kind="ghost").pack(side="right", anchor="s")
 
         self.cards_row = tk.Frame(self, bg=C["bg"])
@@ -100,6 +101,7 @@ class HistoryPage(tk.Frame):
         self.tree.tag_configure("loss", foreground=C["bad"])
         self.tree.bind("<<TreeviewSelect>>", self._on_select)
         self._build_charts()
+        self.mmr_panel = MMRPanel(self, self.history, self.profiles)
 
     # ---- graficos ----------------------------------------------------------
 
@@ -159,9 +161,11 @@ class HistoryPage(tk.Frame):
         self.trend_chart.set(charts.rolling_avg(self._chart_rows, self.metric, 10))
 
     def _apply_view(self):
-        for w in (self.cards_row, self.empty_lbl, self.table_card, self.charts_frame):
+        for w in (self.cards_row, self.empty_lbl, self.table_card, self.charts_frame, self.mmr_panel):
             w.pack_forget()
-        if self.view == VIEWS[1]:
+        if self.view == VIEWS[2]:
+            self.mmr_panel.pack(fill="both", expand=True, pady=(P(2), 0))
+        elif self.view == VIEWS[1]:
             self.charts_frame.pack(fill="both", expand=True, pady=(P(2), 0))
         else:
             self.cards_row.pack(fill="x")
@@ -261,6 +265,10 @@ class HistoryPage(tk.Frame):
     def refresh(self):
         pid, since, mode = self._filters()
         self._apply_view()
+        if self.view == VIEWS[2]:
+            self.mmr_panel.box.refresh()
+            self.mmr_panel.refresh()
+            return
         if self.view == VIEWS[1]:
             self._refresh_charts(self.history.recent(pid, since, mode, limit=5000))
             return

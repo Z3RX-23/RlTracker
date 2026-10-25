@@ -206,6 +206,21 @@ A app fala com qualquer serviço compatível com a API da OpenAI.
 3. Com **Outro** indicas tu o **endereço** base (`.../v1`), por exemplo o de um modelo local no teu PC.
 4. Escolhe a **língua da resposta** (igual à da app, Português, English ou Español).
 
+### MMR
+
+<a id="mmr"></a>
+
+Mostra o teu MMR de 1v1, 2v2 e 3v3 no **Histórico → MMR** (atual, variação de hoje e dos 7 dias, melhor valor, gráfico e quanto ganhas/perdes em média por vitória/derrota). Há duas maneiras de o registar:
+
+- **À mão:** no **Ao vivo** (ou no Histórico → MMR) escolhe o modo, escreve o número que vês no jogo e carrega em **Guardar MMR**.
+- **Automático (opcional):** a app consulta o teu perfil público numa API de terceiros ([Rocket League na RapidAPI](https://rapidapi.com/TonyKun7/api/rocket-league10)). Não toca no jogo nem no anti-cheat.
+  1. Cria conta na RapidAPI e subscreve o plano **Basic** (grátis, 10 pedidos por dia; pede cartão mas não cobra).
+  2. Copia a tua chave (`x-rapidapi-key`) para **Definições → MMR** e carrega em **Testar**.
+  3. Na **Epic** o nome do perfil da app serve (o teu nome no jogo). Na **Steam** a API pede o **custom URL** do perfil (a parte de `steamcommunity.com/id/…`): cola-o, ou o link inteiro, no campo **Identificador para o MMR** do perfil ativo. O nome do perfil da app continua a ser o do jogo.
+  4. A app gasta **1 pedido ao abrir**, **1 no fim da sessão** (10 minutos sem jogar, ao reiniciar a sessão ou ao fechar a app) e **1 sempre que carregas em Atualizar do jogo**. O contador no **Ao vivo** mostra os pedidos usados hoje (o plano grátis tem 10 por dia, por conta). Em **Consultar também durante a sessão** podes escolher uma consulta extra a cada 30 min, 1 h ou 2 h (só se houve jogos desde a última); por omissão fica em **Só no fim da sessão**.
+
+O MMR pode demorar alguns minutos a refletir o último jogo, e a API é de um autor individual (pode ficar lenta ou mudar). Cada pessoa usa a sua própria chave. O ganho/perda médio por jogo só conta intervalos entre dois registos com **exatamente um jogo** (precisos 3 de cada), por isso com consultas só no início e no fim da sessão serve sobretudo o registo manual depois de cada jogo.
+
 ### Dados e cópias
 
 - Lista os ficheiros de dados e o tamanho de cada um.
@@ -226,11 +241,12 @@ Tudo é guardado **no teu PC, na pasta do `.exe`**:
 | `replays.db` | Estatísticas dos replays analisados |
 | `settings.json` | Definições da app |
 | `ballchasing.json` | Chave do Ballchasing e opções |
+| `rlapi.json` | Chave da API do MMR, contador de pedidos diários e opções |
 | `ai.json` | Chave e opções do serviço de IA |
 | `config.ini` | Opcional: pasta do jogo |
 | `backups\` | Cópias automáticas (sem chaves) |
 
-- **As chaves de API ficam em texto simples** nos ficheiros `ballchasing.json` e `ai.json`. Nunca os partilhes. As cópias automáticas e a exportação **não os incluem**.
+- **As chaves de API ficam em texto simples** nos ficheiros `ballchasing.json`, `ai.json` e `rlapi.json`. Nunca os partilhes. As cópias automáticas e a exportação **não os incluem**.
 - **A app não envia nada para fora** sem o pedires. Só fala com a internet quando usas o Ballchasing (envia os replays) ou a análise com IA.
 - **IA:** só vão **números agregados** (vitórias, médias por modo, etc.), nunca nomes de jogadores nem ficheiros. Confirma sempre com **Ver dados enviados**.
 - Para desinstalar, apaga a pasta. Não há instalador nem registo no Windows, a não ser que ligues **Iniciar com o Windows**, que cria uma entrada de arranque (desligar o interruptor remove-a).
@@ -272,7 +288,7 @@ A Stats API do Rocket League é um **socket TCP local** (`127.0.0.1:49123`) que 
 **Limitações da API oficial**
 
 - Só emite dados **durante uma partida** no teu PC e só dos jogadores dessa partida.
-- **Não dá MMR nem rank** (nem o teu, nem o dos outros), por isso a app foca-se em vitórias, derrotas e sequência. Para o teu próprio MMR existem plugins de [BakkesMod](https://bakkesmod.com), que são uma ferramenta separada.
+- **A Stats API do jogo não dá MMR nem rank.** A app obtém o teu MMR por fora: escreves tu (campo MMR no **Ao vivo** ou no **Histórico → MMR**) ou ela consulta o teu perfil público numa API de terceiros (RapidAPI, ver [MMR automático](#mmr)). Esta app **não mexe no processo do jogo** (nada de injeção ou mods), para não entrar em conflito com o anti-cheat.
 - **Não diz a playlist.** O modo (1v1, 2v2, 3v3) é inferido pelo tamanho das equipas, por isso **não distingue ranked de casual** nem separa Hoops/Rumble.
 
 **Como se decide vitória ou derrota**, por esta ordem:
@@ -351,7 +367,7 @@ Outras opções: `--live` (ecrã de texto que se atualiza), `--verbose`, `--port
 
 ### Contribuir
 
-Os dados e as chaves estão no `.gitignore` (`profiles.json`, `settings.json`, `ballchasing.json`, `ai.json`, `*.db`, `backups/`, `dist/`). Confirma com `git status` antes de cada commit que nenhum aparece.
+Os dados e as chaves estão no `.gitignore` (`profiles.json`, `settings.json`, `ballchasing.json`, `ai.json`, `rlapi.json`, `*.db`, `backups/`, `dist/`). Confirma com `git status` antes de cada commit que nenhum aparece.
 
 ---
 
